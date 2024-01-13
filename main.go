@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/cookie"
+	"github.com/gin-contrib/sessions/redis"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -51,7 +51,15 @@ func initWebServer() *gin.Engine {
 	}))
 
 	login := &middlewares.LoginMiddlewareBuilder{}
-	store := cookie.NewStore([]byte("secret"))
+	// 基于cookie 实现
+	//store := cookie.NewStore([]byte("secret"))
+	// 基于内存实现
+	//store := memstore.NewStore([]byte("Upxnmo6PEdrbKRMBfCVOjUjjEoJY4D9e"), []byte("pBjVy5p318kMACbu84sjRTPpCOpV03HD"))
+	// 基于Redis
+	store, err := redis.NewStore(16, "tcp", "localhost:6379", "", []byte("Upxnmo6PEdrbKRMBfCVOjUjjEoJY4D9e"), []byte("pBjVy5p318kMACbu84sjRTPpCOpV03HD"))
+	if err != nil {
+		panic(err)
+	}
 	server.Use(sessions.Sessions("ssid", store), login.CheckLogin())
 	return server
 }
