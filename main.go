@@ -3,8 +3,9 @@ package main
 import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/redis"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"webook/internal/service"
 	"webook/internal/web"
 	"webook/internal/web/middlewares"
+	"webook/pkg/ginx/middleware/ratelimit"
 )
 
 func main() {
@@ -52,9 +54,10 @@ func initWebServer() *gin.Engine {
 		MaxAge: 12 * time.Hour,
 	}))
 
+	redisClient := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
 	//useSession(server)
+	server.Use(ratelimit.NewBuilder(redisClient, time.Second, 100).Build())
 	useJWT(server)
-
 	return server
 }
 
@@ -74,13 +77,13 @@ func useJWT(server *gin.Engine) {
 func useSession(server *gin.Engine) {
 	login := &middlewares.LoginMiddlewareBuilder{}
 	// 基于cookie 实现
-	//store := cookie.NewStore([]byte("secret"))
+	store := cookie.NewStore([]byte("secret"))
 	// 基于内存实现
 	//store := memstore.NewStore([]byte("Upxnmo6PEdrbKRMBfCVOjUjjEoJY4D9e"), []byte("pBjVy5p318kMACbu84sjRTPpCOpV03HD"))
 	// 基于Redis
-	store, err := redis.NewStore(16, "tcp", "localhost:6379", "", []byte("Upxnmo6PEdrbKRMBfCVOjUjjEoJY4D9e"), []byte("pBjVy5p318kMACbu84sjRTPpCOpV03HD"))
-	if err != nil {
-		panic(err)
-	}
+	//store, err := redis.NewStore(16, "tcp", "localhost:6379", "", []byte("Upxnmo6PEdrbKRMBfCVOjUjjEoJY4D9e"), []byte("pBjVy5p318kMACbu84sjRTPpCOpV03HD"))
+	//if err != nil {
+	//	panic(err)
+	//}
 	server.Use(sessions.Sessions("ssid", store), login.CheckLogin())
 }
