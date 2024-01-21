@@ -40,7 +40,9 @@ func initWebServer() *gin.Engine {
 
 	server.Use(cors.New(cors.Config{
 		AllowCredentials: true,
-		AllowHeaders:     []string{"Content-Type"},
+		AllowHeaders:     []string{"Content-Type", "Authorization"},
+		// 用于允许前端访问你后端响应中的头部
+		ExposeHeaders: []string{"x-jwt-token"},
 		AllowOriginFunc: func(origin string) bool {
 			if strings.HasPrefix(origin, "http://localhost") {
 				return true
@@ -50,6 +52,26 @@ func initWebServer() *gin.Engine {
 		MaxAge: 12 * time.Hour,
 	}))
 
+	//useSession(server)
+	useJWT(server)
+
+	return server
+}
+
+func initUser(server *gin.Engine, db *gorm.DB) {
+	ud := dao.NewUserDAO(db)
+	ur := repository.NewUserRepository(ud)
+	us := service.NewUserService(ur)
+	c := web.NewUserHandler(us)
+	c.RegisterRoutes(server)
+}
+
+func useJWT(server *gin.Engine) {
+	login := &middlewares.LoginJWTMiddlewareBuilder{}
+	server.Use(login.CheckLogin())
+}
+
+func useSession(server *gin.Engine) {
 	login := &middlewares.LoginMiddlewareBuilder{}
 	// 基于cookie 实现
 	//store := cookie.NewStore([]byte("secret"))
@@ -61,13 +83,4 @@ func initWebServer() *gin.Engine {
 		panic(err)
 	}
 	server.Use(sessions.Sessions("ssid", store), login.CheckLogin())
-	return server
-}
-
-func initUser(server *gin.Engine, db *gorm.DB) {
-	ud := dao.NewUserDAO(db)
-	ur := repository.NewUserRepository(ud)
-	us := service.NewUserService(ur)
-	c := web.NewUserHandler(us)
-	c.RegisterRoutes(server)
 }

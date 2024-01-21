@@ -4,6 +4,7 @@ import (
 	regexp "github.com/dlclark/regexp2"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	jwt "github.com/golang-jwt/jwt/v5"
 	"net/http"
 	"time"
 	"webook/internal/domain"
@@ -45,7 +46,8 @@ func (c *UserHandler) RegisterRoutes(server *gin.Engine) {
 	// 分组注册
 	ug := server.Group("/users")
 	ug.POST("/signup", c.SignUp)
-	ug.POST("/login", c.Login)
+	//ug.POST("/login", c.Login)
+	ug.POST("/login", c.LoginJWT)
 	ug.POST("/edit", c.Edit)
 	ug.GET("/profile", c.Profile)
 }
@@ -135,6 +137,41 @@ func (c *UserHandler) Login(ctx *gin.Context) {
 	}
 }
 
+func (c *UserHandler) LoginJWT(ctx *gin.Context) {
+	type LoginReq struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	var req LoginReq
+	// 当我们调用 Bind 方法的时候，如果有问题，Bind 方法已经直接写响应回去了
+	if err := ctx.Bind(&req); err != nil {
+		return
+	}
+	u, err := c.svc.Login(ctx.Request.Context(), req.Email, req.Password)
+	switch err {
+	case nil:
+		uc := UserClaims{
+			Uid: u.Id,
+			RegisteredClaims: jwt.RegisteredClaims{
+				// 1分钟后过期
+				ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+			},
+		}
+		token := jwt.NewWithClaims(jwt.SigningMethodHS512, uc)
+		tokenStr, err := token.SignedString(JWTKey)
+		if err != nil {
+			ctx.String(http.StatusOK, "系统错误")
+		}
+		ctx.Header("x-jwt-token", tokenStr)
+		ctx.String(http.StatusOK, "登陆成功")
+	case service.ErrInvalidUserOrPassword:
+		ctx.String(http.StatusOK, "用户名或密码不对")
+	default:
+		ctx.String(http.StatusOK, "系统错误")
+	}
+}
+
 // Edit 用户编译信息
 func (c *UserHandler) Edit(ctx *gin.Context) {
 	type EditReq struct {
@@ -177,6 +214,8 @@ func (c *UserHandler) Edit(ctx *gin.Context) {
 
 // Profile 用户详情
 func (c *UserHandler) Profile(ctx *gin.Context) {
+	//user := ctx.MustGet("user").(UserClaims)
+
 	sess := sessions.Default(ctx)
 	id := sess.Get("userId").(int64)
 	u, err := c.svc.Profile(ctx, id)
@@ -197,4 +236,11 @@ func (c *UserHandler) Profile(ctx *gin.Context) {
 		BirthDay: u.BirthDay.Format(time.DateOnly),
 		AboutMe:  u.AboutMe,
 	})
+}
+
+var JWTKey = []byte("Upxnmo6PEdrbKRMBfCVOjUjjEoXY4D9e")
+
+type UserClaims struct {
+	jwt.RegisteredClaims
+	Uid int64
 }
