@@ -38,12 +38,13 @@ func (m *LoginJWTMiddlewareBuilder) CheckLogin() gin.HandlerFunc {
 		token, err := jwt.ParseWithClaims(tokenStr, &uc, func(token *jwt.Token) (interface{}, error) {
 			return web.JWTKey, nil
 		})
-		if err != nil {
+		if err != nil || !token.Valid {
 			ctx.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-		if !token.Valid {
-			// token 可能是非法的，或者是过期的
+
+		if uc.UserAgent != ctx.GetHeader("User-Agent") {
+			// TODO: 监控告警埋点
 			ctx.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}

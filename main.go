@@ -8,8 +8,10 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"net/http"
 	"strings"
 	"time"
+	"webook/config"
 	"webook/internal/repository"
 	"webook/internal/repository/dao"
 	"webook/internal/service"
@@ -19,14 +21,20 @@ import (
 )
 
 func main() {
-	db := initDB()
-	server := initWebServer()
-	initUser(server, db)
+	//db := initDB()
+	//server := initWebServer()
+	//initUser(server, db)
+
+	server := gin.Default()
+	server.GET("/hello", func(ctx *gin.Context) {
+		ctx.String(http.StatusOK, "hello, it's started")
+	})
+
 	server.Run(":8080")
 }
 
 func initDB() *gorm.DB {
-	db, err := gorm.Open(mysql.Open("root:root@tcp(localhost:13316)/webook"))
+	db, err := gorm.Open(mysql.Open(config.Config.DB.DSN))
 	if err != nil {
 		panic(err)
 	}
@@ -54,7 +62,7 @@ func initWebServer() *gin.Engine {
 		MaxAge: 12 * time.Hour,
 	}))
 
-	redisClient := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+	redisClient := redis.NewClient(&redis.Options{Addr: config.Config.Redis.Addr})
 	//useSession(server)
 	server.Use(ratelimit.NewBuilder(redisClient, time.Second, 100).Build())
 	useJWT(server)
